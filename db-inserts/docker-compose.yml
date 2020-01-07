@@ -1,0 +1,21 @@
+version: '3.7'
+
+services:
+  mysql:
+    image: mysql:5.6
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: pickles
+    ports:
+      - 3307:3306
+    volumes:
+      - mysql:/var/lib/mysql
+
+    # Allow client to load data into tables via infile command
+    command: --local-infile=1
+    # Allows input packet sizes to be 100 MB
+    command: --max-allowed-packet=104857600
+
+volumes:
+  mysql:
