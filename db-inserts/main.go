@@ -112,7 +112,15 @@ func insert(docsc chan Document, db *sql.DB, batchSize int) {
 		}
 
 		// Insert the document
-		_, err = stmt.Exec(doc)
+		_, err = stmt.Exec(
+			doc.Type,
+			doc.LineID,
+			doc.PlayName,
+			doc.SpeechNumber,
+			doc.LineNumber,
+			doc.Speaker,
+			doc.Line,
+		)
 		if err != nil {
 			if rollbackErr = tx.Rollback(); rollbackErr != nil {
 				log.Fatalf("Doc insert failed: %v, unable to rollback: %v", err, rollbackErr)
@@ -121,7 +129,6 @@ func insert(docsc chan Document, db *sql.DB, batchSize int) {
 			}
 		}
 
-		log.Println(doc)
 		if b == batchSize {
 			// Close the statement and commit the transaction
 			if err = stmt.Close(); err != nil {
@@ -134,6 +141,8 @@ func insert(docsc chan Document, db *sql.DB, batchSize int) {
 			if err = tx.Commit(); err != nil {
 				log.Fatalf("Unable to commit transaction: %v", err)
 			}
+
+			log.Println("Successfully inserted a new batch of documents")
 
 			// Reset the batch offset
 			b = 1
