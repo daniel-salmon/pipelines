@@ -26,10 +26,10 @@ var wg sync.WaitGroup
 
 func main() {
 	var (
-		batchSize = flag.Int("batch-size", 500, "Number of documents for each worker to process at any given time")
-		file       = flag.String("file", "shakespeare.json", "Name of file to parse")
+		batchSize             = flag.Int("batch-size", 500, "Number of documents for each worker to process at any given time")
+		file                  = flag.String("file", "shakespeare.json", "Name of file to parse")
 		mysqlConnectionString = flag.String("mysql-connection", "root:pickles@tcp(172.18.0.1:3307)/shakespeare", "MySQL database connection string")
-		numWorkers = flag.Int("num-workers", 5, "Number of concurrent workers to use for processing")
+		numWorkers            = flag.Int("num-workers", 5, "Number of concurrent workers to use for processing")
 	)
 	flag.Parse()
 
@@ -82,11 +82,11 @@ func main() {
 
 func insert(docsc chan Document, db *sql.DB, batchSize int) {
 	var (
-		b int
-		tx *sql.Tx
-		stmt *sql.Stmt
-		err error
-		rollbackErr	error
+		b           int
+		tx          *sql.Tx
+		stmt        *sql.Stmt
+		err         error
+		rollbackErr error
 	)
 
 	b = 1
