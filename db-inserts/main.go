@@ -81,28 +81,62 @@ func main() {
 }
 
 func insert(docsc chan Document, db *sql.DB, batchSize int) {
-	b := 0
+	var (
+		b int
+		tx *sql.Tx
+		stmt *sql.Stmt
+		err error
+		rollbackErr	error
+	)
+
+	b = 1
 	for doc := range docsc {
-		if b == 0 {
+		if b == 1 {
 			// Begin a transaction for this batch
 			// We open a transaction so that the worker invoking this method has a single,
-			// isolated connection in the connection pool on which it can process documents
-			tx, _ := db.Begin()
+			// isolated connection in the connection pool
+			tx, err = db.Begin()
+			if err != nil {
+				log.Fatal(err)
+			}
 
-			stmt, _ := tx.Prepare(`
+			stmt, err = tx.Prepare(`
 				INSERT INTO document (
 					type, line_id, play_name, speech_number, line_number, speaker, line
 				)
 				VALUES (?, ?, ?, ?, ?, ?, ?);
 			`)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
+
 		// Insert the document
-		// stmt.Exec(doc)
+		_, err = stmt.Exec(doc)
+		if err != nil {
+			if rollbackErr = tx.Rollback(); rollbackErr != nil {
+				log.Fatalf("Doc insert failed: %v, unable to rollback: %v", err, rollbackErr)
+			} else {
+				log.Fatal(err)
+			}
+		}
+
 		log.Println(doc)
-		if b == batchSize - 1 {
-			// stmt.Close()
-			// tx.Commit()
-			b == 0
+		if b == batchSize {
+			// Close the statement and commit the transaction
+			if err = stmt.Close(); err != nil {
+				if rollbackErr = tx.Rollback(); rollbackErr != nil {
+					log.Fatalf("Unable to close prepared statement: %v, unable to rollback: %v", err, rollbackErr)
+				}
+				log.Fatalf("Unable to close the prepared statement: %v", err)
+			}
+
+			if err = tx.Commit(); err != nil {
+				log.Fatalf("Unable to commit transaction: %v", err)
+			}
+
+			// Reset the batch offset
+			b = 1
 		} else {
 			b++
 		}
