@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -23,6 +24,7 @@ type Document struct {
 }
 
 var wg sync.WaitGroup
+var docCounter uint64
 
 func main() {
 	var (
@@ -142,7 +144,12 @@ func insert(docsc chan Document, db *sql.DB, batchSize int) {
 				log.Fatalf("Unable to commit transaction: %v", err)
 			}
 
-			log.Println("Successfully inserted a new batch of documents")
+			// Atomically increment the total number of documents that have been inserted by the job
+			// We must ensure that each goroutine has exclusive access to the docCounter variable
+			// Otherwise we would have a race condition
+			atomic.AddUint64(&docCounter, uint64(batchSize))
+			nDocs := atomic.LoadUint64(&docCounter)
+			log.Printf("Successfully inserted a new batch of documents. Total docs: %d", nDocs)
 
 			// Reset the batch offset
 			b = 1
