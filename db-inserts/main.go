@@ -85,6 +85,7 @@ func main() {
 func insert(docsc chan Document, db *sql.DB, batchSize int) {
 	var (
 		b           int
+		insertedDocs	uint64
 		tx          *sql.Tx
 		stmt        *sql.Stmt
 		err         error
@@ -92,6 +93,7 @@ func insert(docsc chan Document, db *sql.DB, batchSize int) {
 	)
 
 	b = 1
+	insertedDocs = 0
 	for doc := range docsc {
 		if b == 1 {
 			// Begin a transaction for this batch
@@ -131,6 +133,9 @@ func insert(docsc chan Document, db *sql.DB, batchSize int) {
 			}
 		}
 
+		// Increment the number of docs inserted during the current transaction
+		insertedDocs++
+
 		if b == batchSize {
 			// Close the statement and commit the transaction
 			if err = stmt.Close(); err != nil {
@@ -147,15 +152,35 @@ func insert(docsc chan Document, db *sql.DB, batchSize int) {
 			// Atomically increment the total number of documents that have been inserted by the job
 			// We must ensure that each goroutine has exclusive access to the docCounter variable
 			// Otherwise we would have a race condition
-			atomic.AddUint64(&docCounter, uint64(batchSize))
+			atomic.AddUint64(&docCounter, insertedDocs)
 			nDocs := atomic.LoadUint64(&docCounter)
 			log.Printf("Successfully inserted a new batch of documents. Total docs: %d", nDocs)
 
-			// Reset the batch offset
+			// Reset the batch offset and number of docs inserted in the current transaction
 			b = 1
+			insertedDocs = 0
 		} else {
 			b++
 		}
 	}
+
+	// Commit the final transaction
+	// These are the statements mod batch size
+	if err = stmt.Close(); err != nil {
+		if rollbackErr = tx.Rollback(); rollbackErr != nil {
+			log.Fatalf("Unable to close prepared statement: %v, unable to rollback: %v", err, rollbackErr)
+		}
+		log.Fatalf("Unable to close prepared statement: %v", err)
+	}
+
+	if err = tx.Commit(); err != nil {
+		log.Fatalf("Unable to commit transaction: %v", err)
+	}
+
+	// Increment the total number of documents inserted by the job
+	atomic.AddUint64(&docCounter, insertedDocs)
+	nDocs := atomic.LoadUint64(&docCounter)
+	log.Printf("Successfully inserted the final batch of documents for this worker. Total docs: %d", nDocs)
+
 	wg.Done()
 }
