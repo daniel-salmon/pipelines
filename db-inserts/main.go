@@ -84,12 +84,12 @@ func main() {
 
 func insert(docsc chan Document, db *sql.DB, batchSize int) {
 	var (
-		b           int
-		insertedDocs	uint64
-		tx          *sql.Tx
-		stmt        *sql.Stmt
-		err         error
-		rollbackErr error
+		b            int
+		insertedDocs uint64
+		tx           *sql.Tx
+		stmt         *sql.Stmt
+		err          error
+		rollbackErr  error
 	)
 
 	b = 1
